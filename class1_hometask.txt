@@ -1,0 +1,42 @@
+docker run -d \
+    --rm -it \
+    -p 5432:5432 \
+    --name postgres \
+    -e POSTGRES_PASSWORD=password \
+    -e PGDATA=/var/lib/postgresql/data \
+    -v $(pwd)/mntdata:/var/lib/postgresql/data \
+    postgres:13.1
+
+psql -U postgres
+
+create database mypsql;
+\l
+create user testuser password 'secret';
+grant all privileges on database mypsql to testuser;
+\q
+
+psql -U testuser -d mypsql
+
+create table users (
+id bigint generated always as identity,
+name integer not null,
+age integer
+);
+
+mypsql=> insert into users(name, age)
+mypsql-> values ('Pam', 18);
+INSERT 0 1
+mypsql=> insert into users(name, age)
+values (Bob, 20);
+INSERT 0 1
+mypsql=> insert into users(name, age)
+values (Mary, 19);
+INSERT 0 1
+
+mypsql=> select * from users;
+ id | name | age 
+----+------+-----
+  1 | Pam  | 18
+  2 | Bob  | 20
+  3 | Mary | 19
+(3 rows)
