@@ -1,0 +1,120 @@
+postgres=# \dt
+           List of relations
+ Schema |    Name    | Type  |  Owner
+--------+------------+-------+----------
+ public | bildings   | table | postgres
+ public | events     | table | postgres
+ public | eventusers | table | postgres
+ public | maps       | table | postgres
+ public | users      | table | postgres
+(5 rows)
+
+
+postgres=# select count(1) as cnt from users;
+ cnt
+-----
+   3
+(1 row)
+
+postgres=# select count(1) as cnt from maps;
+ cnt
+-----
+   1
+(1 row)
+
+postgres=# select count(1) as cnt from events;
+ cnt
+-----
+   2
+(1 row)
+
+postgres=# select count(1) as cnt from eventUsers;
+ cnt
+-----
+   0
+(1 row)
+
+postgres=# select count(1) as cnt from bildings;
+ cnt
+-----
+   4
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.users'::regclass;
+ estimate
+----------
+        0
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.maps'::regclass;
+ estimate
+----------
+        0
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'events'::regclass;
+ estimate
+----------
+        0
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.events'::regclass;
+ estimate
+----------
+        0
+(1 row)
+
+
+
+postgres=# \d+
+                                       List of relations
+ Schema |          Name          |   Type   |  Owner   | Persistence |    Size    | Description
+--------+------------------------+----------+----------+-------------+------------+-------------
+ public | bildings               | table    | postgres | permanent   | 8192 bytes |
+ public | bildings_id_bild_seq   | sequence | postgres | permanent   | 8192 bytes |
+ public | events                 | table    | postgres | permanent   | 16 kB      |
+ public | events_id_event_seq    | sequence | postgres | permanent   | 8192 bytes |
+ public | eventusers             | table    | postgres | permanent   | 0 bytes    |
+ public | eventusers_id_evus_seq | sequence | postgres | permanent   | 8192 bytes |
+ public | maps                   | table    | postgres | permanent   | 8192 bytes |
+ public | maps_id_map_seq        | sequence | postgres | permanent   | 8192 bytes |
+ public | users                  | table    | postgres | permanent   | 8192 bytes |
+ public | users_id_user_seq      | sequence | postgres | permanent   | 8192 bytes |
+(10 rows)
+
+postgres=# select oid::regclass::text as tablename, pg_total_relation_size(oid) as bytes from pg_class where relkind = 'r' order by bytes desc limit 5;
+   tablename    |  bytes
+----------------+---------
+ pg_depend      | 1146880
+ pg_proc        | 1048576
+ pg_attribute   |  778240
+ pg_rewrite     |  704512
+ pg_description |  573440
+(5 rows)
+
+
+root@1564c1f328df:/workdir# du -sh $PGDATA/*
+31M     /var/lib/postgresql/data/base
+568K    /var/lib/postgresql/data/global
+4.0K    /var/lib/postgresql/data/pg_commit_ts
+4.0K    /var/lib/postgresql/data/pg_dynshmem
+8.0K    /var/lib/postgresql/data/pg_hba.conf
+4.0K    /var/lib/postgresql/data/pg_ident.conf
+16K     /var/lib/postgresql/data/pg_logical
+28K     /var/lib/postgresql/data/pg_multixact
+4.0K    /var/lib/postgresql/data/pg_notify
+4.0K    /var/lib/postgresql/data/pg_replslot
+4.0K    /var/lib/postgresql/data/pg_serial
+4.0K    /var/lib/postgresql/data/pg_snapshots
+4.0K    /var/lib/postgresql/data/pg_stat
+24K     /var/lib/postgresql/data/pg_stat_tmp
+12K     /var/lib/postgresql/data/pg_subtrans
+4.0K    /var/lib/postgresql/data/pg_tblspc
+4.0K    /var/lib/postgresql/data/pg_twophase
+4.0K    /var/lib/postgresql/data/PG_VERSION
+17M     /var/lib/postgresql/data/pg_wal
+12K     /var/lib/postgresql/data/pg_xact
+4.0K    /var/lib/postgresql/data/postgresql.auto.conf
+28K     /var/lib/postgresql/data/postgresql.conf
+4.0K    /var/lib/postgresql/data/postmaster.opts
+4.0K    /var/lib/postgresql/data/postmaster.pid
