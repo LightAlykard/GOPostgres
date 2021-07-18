@@ -1,0 +1,124 @@
+Добавил в базу больше записей, mockdata так у меня и не заработала выдает:
+level=fatal msg="Encountered error when connecting to the database, err: \xc2\xc0\xc6\xcd\xce #28P01 \xef\xee\xeb\xfc\xe7\xee\xe2\xe0\xf2\xe5\xeb\xfc \"postgres\" \xed\xe5 \xef\xf0\xee\xf8\xb8\xeb \xef\xf0\xee\xe2\xe5\xf0\xea\xf3 \xef\xee\xe4\xeb\xe8\xed\xed\xee\xf1\xf2\xe8 (\xef\xee \xef\xe0\xf0\xee\xeb\xfe)" file="sql.go:80"
+но наполнил таблицы сам немного автоматизировав, в итоге:
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.users'::regclass;
+ estimate
+----------
+     1002
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.bildings'::regclass;
+ estimate
+----------
+      103
+(1 row)
+
+postgres=# select reltuples::bigint as estimate from pg_class where oid = 'public.maps'::regclass;
+ estimate
+----------
+     1768
+(1 row)
+
+в первом запросе:
+-- список пользователей по рейтингу
+select user_name, score, money_sum, people_all from users ORDER BY score DESC;
+
+и в третьем запросе:
+-- получить статистику пользователя по имени
+select user_name, score, money_sum, money_per_turn, people_all, people_per_turn, people_free,people_milit,people_med,people_manag,milit_sum_boost,med_sum_boost, manag_sum_boost from users where user_name = 'testuser';
+
+Есть смысл индексации только по полю user_name, но оно имеет свойство UNIQUE, а значит postgres автоматически создаст по этому столбцу индексацию.
+Смысл индексации поля score думаю нету, так как хоть и будут запросы по рейтингу, но они будут не так часто, как добавление значений в таблицу или их изменение, а дополнительное поле индексации на сколько я понял больше загружают добавление и обнавление строк.
+
+postgres=# explain analyze select user_name, score, money_sum, people_all from users ORDER BY score DESC;
+                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------
+ Sort  (cost=71.96..74.47 rows=1002 width=20) (actual time=0.372..0.416 rows=1002 loops=1)
+   Sort Key: score DESC
+   Sort Method: quicksort  Memory: 103kB
+   ->  Seq Scan on users  (cost=0.00..22.02 rows=1002 width=20) (actual time=0.008..0.158 rows=1002 loops=1)
+ Planning Time: 0.058 ms
+ Execution Time: 0.498 ms
+(6 rows)
+
+postgres=# explain analyze select user_name, score, money_sum, money_per_turn, people_all, people_per_turn, people_free,people_milit,people_med,people_manag,milit_sum_boost,med_sum_boost, manag_sum_boost from users where user_name = 'tUser23';
+                                                         QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using users_user_name_key on users  (cost=0.28..8.29 rows=1 width=56) (actual time=0.024..0.025 rows=1 loops=1)
+   Index Cond: ((user_name)::text = 'tUser23'::text)
+ Planning Time: 0.071 ms
+ Execution Time: 0.042 ms
+(4 rows)
+
+А вот для второго запроса:
+-- получить списки зданий пользователей по имени и с названием зданий и их координат
+postgres=# explain analyze SELECT user_name, build_name, xCoord,yCoord FROM users, bildings, maps WHERE maps.user_id = users.id_user and maps.bilding_id=bildings.id_bild and user_name='tUser23';
+                                                                  QUERY PLAN
+
+------------------------------------------------------------------------------------------------------------------------
+----------------------
+ Nested Loop  (cost=8.45..53.98 rows=2 width=23) (actual time=0.056..0.338 rows=2 loops=1)
+   ->  Hash Join  (cost=8.30..53.65 rows=2 width=20) (actual time=0.052..0.329 rows=2 loops=1)
+         Hash Cond: (maps.user_id = users.id_user)
+         ->  Seq Scan on maps  (cost=0.00..40.68 rows=1768 width=16) (actual time=0.008..0.148 rows=1768 loops=1)
+         ->  Hash  (cost=8.29..8.29 rows=1 width=12) (actual time=0.016..0.016 rows=1 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               ->  Index Scan using users_user_name_key on users  (cost=0.28..8.29 rows=1 width=12) (actual time=0.013..
+0.013 rows=1 loops=1)
+                     Index Cond: ((user_name)::text = 'tUser23'::text)
+   ->  Index Scan using bildings_id_pkey on bildings  (cost=0.14..0.17 rows=1 width=11) (actual time=0.002..0.002 rows=1
+ loops=2)
+         Index Cond: (id_bild = maps.bilding_id)
+ Planning Time: 0.314 ms
+ Execution Time: 0.362 ms
+(12 rows)
+
+Можно было бы добавить индексацию по полю user_id, этот запрос будет выполнятся примерно на столько же часто на сколько добавлятся записи в таблицу maps 
+
+postgres=# create index concurrently maps_userId_idx on maps (user_id);
+CREATE INDEX
+
+postgres=# \d maps
+                              Table "public.maps"
+   Column   |  Type   | Collation | Nullable |             Default
+------------+---------+-----------+----------+----------------------------------
+ id_map     | integer |           | not null | generated by default as identity
+ user_id    | integer |           | not null |
+ bilding_id | integer |           | not null |
+ xcoord     | integer |           | not null |
+ ycoord     | integer |           | not null |
+Indexes:
+    "maps_id_pkey" PRIMARY KEY, btree (id_map)
+    "maps_userid_idx" btree (user_id)
+Foreign-key constraints:
+    "maps_fk_bilding_id" FOREIGN KEY (bilding_id) REFERENCES bildings(id_bild) ON DELETE RESTRICT
+    "maps_fk_user_id" FOREIGN KEY (user_id) REFERENCES users(id_user) ON DELETE RESTRICT
+
+postgres=# explain analyze SELECT user_name, build_name, xCoord,yCoord FROM users, bildings, maps WHERE maps.user_id = users.id_user and maps.bilding_id=bildings.id_bild and user_name='tUser23';
+                                                               QUERY PLAN
+
+------------------------------------------------------------------------------------------------------------------------
+----------------
+ Nested Loop  (cost=0.70..16.96 rows=2 width=23) (actual time=0.018..0.021 rows=2 loops=1)
+   ->  Nested Loop  (cost=0.55..16.62 rows=2 width=20) (actual time=0.015..0.017 rows=2 loops=1)
+         ->  Index Scan using users_user_name_key on users  (cost=0.28..8.29 rows=1 width=12) (actual time=0.009..0.010
+rows=1 loops=1)
+               Index Cond: ((user_name)::text = 'tUser23'::text)
+         ->  Index Scan using maps_userid_idx on maps  (cost=0.28..8.31 rows=2 width=16) (actual time=0.003..0.003 rows=
+2 loops=1)
+               Index Cond: (user_id = users.id_user)
+   ->  Index Scan using bildings_id_pkey on bildings  (cost=0.14..0.17 rows=1 width=11) (actual time=0.001..0.001 rows=1
+ loops=2)
+         Index Cond: (id_bild = maps.bilding_id)
+ Planning Time: 0.328 ms
+ Execution Time: 0.041 ms
+(10 rows)
+
+Итого Execution Time: 0.362 ms до индекса и 0.041 ms после добавления индекса.
+
+Оценка занимаемого места:
+postgres=# select pg_relation_size('maps_userid_idx');
+ pg_relation_size
+------------------
+            49152
+(1 row)
