@@ -1,0 +1,26 @@
+AMD Ryzen 5 3600 6-Core Processor 3.59 GHz (6 физических и 6 виртуальных ядер)
+16,0 ГБ оперативной
+2 ТБ
+
+при 1 мин и макс пуле
+PS F:\PostGSQL\testota> go run .
+start attack
+duration: 10.3943294s
+queries: 26470
+QPS: 2647
+
+при 4х мин и макс пуле
+PS F:\PostGSQL\testota> go run .   
+start attack
+duration: 10.0975328s
+threads: 1000
+queries: 93159
+QPS: 9315
+
+при 8 мин и макс пуле
+PS F:\PostGSQL\testota> go run .
+start attack
+duration: 10.0639322s
+threads: 1000
+queries: 149775
+QPS: 14977
